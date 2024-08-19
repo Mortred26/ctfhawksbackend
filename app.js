@@ -8,6 +8,8 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 app.use(cors())
+app.use(morgan('tiny'));
+const morgan = require('morgan');
 
 const userRouter = require('./routes/user');
 const testRouter = require('./routes/test');
