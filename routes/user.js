@@ -183,6 +183,32 @@ router.delete('/:id', authMiddleware, checkAdmin, async (req, res) => {
       res.status(500).send('Error deleting user.');
     }
   });
-  
+
+  // Admin route to reset a user's points for a specific group
+router.put('/reset-points/:userId/:groupId', authMiddleware, checkAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).send('User not found.');
+
+    // Find the specific group attempt by the user
+    let groupAttempt = user.groupsTaken.find(
+      (g) => g.groupId.toString() === req.params.groupId
+    );
+
+    if (!groupAttempt) {
+      return res.status(404).send('Group not found for this user.');
+    }
+
+    // Reset the points for this group
+    groupAttempt.totalPoints = 0;
+    await user.save();
+
+    res.send({ message: `User's points for the group have been reset to 0.` });
+  } catch (error) {
+    console.error('Error resetting points for the group:', error);
+    res.status(500).send('Error resetting points for the group.');
+  }
+});
+
 
 module.exports = router;

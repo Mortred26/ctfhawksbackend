@@ -1,22 +1,25 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const cors = require('cors')
+const cors = require('cors');
 const morgan = require('morgan');
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors())
+app.use(cors());
 app.use(morgan('tiny'));
-
 
 const userRouter = require('./routes/user');
 const testRouter = require('./routes/test');
+const categoryRouter = require('./routes/category');
+const groupRouter = require('./routes/group');
 
 app.use('/api/users', userRouter);
 app.use('/api/tests', testRouter);
+app.use('/api/categories', categoryRouter);
+app.use('/api/groups', groupRouter);
 
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
