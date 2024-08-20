@@ -64,6 +64,7 @@ router.put('/:id', authMiddleware, checkAdmin, async (req, res) => {
     const test = await Test.findByIdAndUpdate(
       req.params.id,
       {
+        name: req.body.name, // Update the name field
         question: req.body.question,
         answer: req.body.answer,
         hint: req.body.hint,
