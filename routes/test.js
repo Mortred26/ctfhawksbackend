@@ -4,6 +4,7 @@ const { Test, validateTest } = require('../models/test');
 const authMiddleware = require('../middleware/authMiddleware');
 const checkAdmin = require('../middleware/checkAdmin');
 const { Group } = require('../models/group');
+const { User } = require('../models/user');  // Assuming User model is defined
 
 // Create a new test (admin only)
 router.post('/', authMiddleware, checkAdmin, async (req, res) => {
@@ -17,11 +18,11 @@ router.post('/', authMiddleware, checkAdmin, async (req, res) => {
 
   try {
     const savedTest = await test.save();
-    
+
     // Add the test to the group's test array
     const group = await Group.findById(req.body.group);
     if (!group) return res.status(404).send('Group not found.');
-    
+
     group.tests.push(savedTest._id);
     await group.save();
 
@@ -32,11 +33,10 @@ router.post('/', authMiddleware, checkAdmin, async (req, res) => {
   }
 });
 
-
 // Get all tests
 router.get('/', async (req, res) => {
   try {
-    const tests = await Test.find()
+    const tests = await Test.find();
     res.send(tests);
   } catch (err) {
     console.error('Error fetching tests:', err); // Log the error details
@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
 // Get a single test by ID
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    const test = await Test.findById(req.params.id)
+    const test = await Test.findById(req.params.id);
     if (!test) return res.status(404).send('Test not found.');
     res.send(test);
   } catch (err) {
@@ -69,6 +69,7 @@ router.put('/:id', authMiddleware, checkAdmin, async (req, res) => {
         answer: req.body.answer,
         hint: req.body.hint,
         score: req.body.score,
+        logindetail: req.body.logindetail, // Include logindetail
       },
       { new: true } // Return the updated document
     );
@@ -99,14 +100,14 @@ router.delete('/:id', authMiddleware, checkAdmin, async (req, res) => {
   }
 });
 
-
-
-
 // Take a test
 router.post('/:id', authMiddleware, async (req, res) => {
   try {
     const test = await Test.findById(req.params.id).populate('group');
     if (!test) return res.status(404).send('Test not found.');
+
+    const correct = req.body.answer === test.answer;
+    let pointsAwarded = 0;
 
     // Ensure the user has `testsTaken` and `groupsTaken` arrays
     if (!req.user.testsTaken) {
@@ -115,9 +116,6 @@ router.post('/:id', authMiddleware, async (req, res) => {
     if (!req.user.groupsTaken) {
       req.user.groupsTaken = [];
     }
-
-    const correct = req.body.answer === test.answer;
-    let pointsAwarded = 0;
 
     // Check if the user has already attempted this test
     let testAttempt = req.user.testsTaken.find(
@@ -182,11 +180,6 @@ router.post('/:id', authMiddleware, async (req, res) => {
     res.status(500).send('Error taking test.');
   }
 });
-
-
-
-
-
 
 // Admin route to reset a user's points
 router.put('/reset-points/:userId', authMiddleware, checkAdmin, async (req, res) => {
