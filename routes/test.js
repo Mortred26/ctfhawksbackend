@@ -115,63 +115,73 @@ router.post('/:id', authMiddleware, async (req, res) => {
       req.user.groupsTaken = [];
     }
 
+    const correct = req.body.answer === test.answer;
+    let pointsAwarded = 0;
+
     // Check if the user has already attempted this test
     let testAttempt = req.user.testsTaken.find(
       (t) => t.testId.toString() === test._id.toString()
     );
 
-    const correct = req.body.answer === test.answer;
-    let pointsAwarded = 0;
-
     if (correct && (!testAttempt || !testAttempt.correct)) {
       // Award points if it's the first correct attempt or if the test was never attempted before
       pointsAwarded = test.score;
 
-      // Add points to the user's group attempt
+      // Check if the group is already in `groupsTaken`
       let groupAttempt = req.user.groupsTaken.find(
         (g) => g.groupId.toString() === test.group._id.toString()
       );
 
       if (!groupAttempt) {
+        // If the group is not in `groupsTaken`, add it
         groupAttempt = {
           groupId: test.group._id,
           totalPoints: pointsAwarded,
-          tests: [],
+          tests: [{
+            testId: test._id,
+            correct,
+            timestamp: Date.now(), // Record the timestamp when the test is taken
+          }],
         };
         req.user.groupsTaken.push(groupAttempt);
       } else {
+        // If the group is already in `groupsTaken`, update it
         groupAttempt.totalPoints += pointsAwarded;
+        groupAttempt.tests.push({
+          testId: test._id,
+          correct,
+          timestamp: Date.now(), // Record the timestamp when the test is taken
+        });
       }
 
+      // Add or update the test in `testsTaken`
       if (!testAttempt) {
         req.user.testsTaken.push({
           testId: test._id,
           correct,
-          timestamp: Date.now(),
+          timestamp: Date.now(), // Record the timestamp when the test is taken
         });
       } else {
         testAttempt.correct = true;
-        testAttempt.timestamp = Date.now();
+        testAttempt.timestamp = Date.now(); // Update the timestamp if the test is taken again
       }
-    } else if (testAttempt && testAttempt.correct) {
-      // If the test was already correctly answered, do not award any more points
-      pointsAwarded = 0;
     }
 
     await req.user.save();
 
     res.send({
       correct,
-      points: req.user.groupsTaken.find(
+      totalPoints: req.user.groupsTaken.find(
         (g) => g.groupId.toString() === test.group._id.toString()
-      ).totalPoints,
-      testTimestamp: testAttempt ? testAttempt.timestamp : Date.now(),
+      ).totalPoints, // Return the total points for the group
+      testTimestamp: testAttempt ? testAttempt.timestamp : Date.now(), // Return the timestamp
     });
   } catch (error) {
     console.error('Error taking test:', error);
     res.status(500).send('Error taking test.');
   }
 });
+
 
 
 
