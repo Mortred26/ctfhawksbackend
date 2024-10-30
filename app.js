@@ -3,21 +3,23 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const morgan = require('morgan');
-
+const bcrypt = require('bcryptjs');
 dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors("*"));
 app.use(morgan('tiny'));
 
 const userRouter = require('./routes/user');
 const testRouter = require('./routes/test');
 const categoryRouter = require('./routes/category');
 const groupRouter = require('./routes/group');
+const teamsRouter = require('./routes/team');
 
 app.use('/api/users', userRouter);
 app.use('/api/tests', testRouter);
+app.use('/api/teams', teamsRouter );
 app.use('/api/categories', categoryRouter);
 app.use('/api/groups', groupRouter);
 

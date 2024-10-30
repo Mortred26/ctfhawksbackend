@@ -6,6 +6,8 @@ const groupSchema = new mongoose.Schema({
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true }, // Bog'langan kategoriya
   tests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Test' }], // Testlar ro'yxati
   createdAt: { type: Date, default: Date.now }, // Yaratilgan sana
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Add this line
+  createdByRole: { type: String, enum: ['user', 'superuser', 'admin'], required: true } // Add this line
 });
 
 const Group = mongoose.model('Group', groupSchema);
