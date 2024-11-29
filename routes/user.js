@@ -1,55 +1,99 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const Team = require('../models/team');
 const { User, validateUser, validateLogin } = require('../models/user');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const authMiddleware = require('../middleware/authMiddleware');
 const checkAdmin = require('../middleware/checkAdmin');
+const checkRole = require("../middleware/checkRole")
 
 
-// Register a new user
-router.post('/register', async (req, res) => {
-    const { error } = validateUser(req.body);
-    if (error) return res.status(400).send(error.details[0].message);
-  
+// Barcha jamoalarni olish
+router.get('/all-teams', async (req, res) => {
+  try {
+    const teams = await Team.find().populate("admins");
+    res.send(teams);
+  } catch (err) {
+    console.error('Error fetching teams:', err);
+    res.status(500).send('Error fetching teams.');
+  }
+});
+
+  // Grant admin rights to a user (admin only)
+  router.put('/:id/admin', authMiddleware, checkRole(['superuser']), async (req, res) => {
     try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).send('User not found.');
+
+        user.role = 'admin';
+        await user.save();
+
+        res.send(user);
+    } catch (err) {
+        console.error('Error granting admin rights:', err);
+        res.status(500).send('Error granting admin rights.');
+    }
+});
+
+
+// Foydalanuvchini ro'yxatdan o'tkazish
+router.post('/register', async (req, res) => {
+
+  try {
+        // Email va parol uzunligini tekshirish
+      if (req.body.email.length < 5) {
+      return res.status(405).send('Email 5 ta belgidan kam bo\'lmasligi kerak.');
+      }
+      if (req.body.password.length < 5) {
+        return res.status(406).send('Parol 5 ta belgidan kam bo\'lmasligi kerak.');
+      }
+
       let user = await User.findOne({ email: req.body.email });
-      if (user) return res.status(400).send('User already registered.');
-  
+      if (user) return res.status(400).send('Foydalanuvchi allaqachon ro\'yhatdan o\'tgan.');
+
+      let username = await User.findOne({ name: req.body.name });
+      if (username) return res.status(401).send('Bunday Foydalanuvchi ro\'yhatdan o\'tgan. Boshqa name tanlang !');
+
       user = new User({ ...req.body, role: 'user' });
-  
+
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(user.password, salt);
-  
+
       await user.save();
-  
+
       const accessToken = generateAccessToken(user);
       const refreshToken = generateRefreshToken(user);
-  
+
       res.send({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        accessToken,
-        refreshToken,
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          team: user.team,
+          accessToken,
+          refreshToken,
       });
-    } catch (err) {
-      console.error('Error registering user:', err);
-      res.status(500).send('Error registering user.');
-    }
-  });
+  } catch (err) {
+      console.error('Foydalanuvchini ro\'yhatdan o\'tkazishda xatolik:', err);
+      res.status(500).send('Foydalanuvchini ro\'yhatdan o\'tkazishda xatolik.');
+  }
+});
   
   // Login user or admin
   router.post('/login', async (req, res) => {
-    const { error } = validateLogin(req.body);
-    if (error) return res.status(400).send(error.details[0].message);
-  
-    let user = await User.findOne({ email: req.body.email });
-    if (!user) return res.status(400).send('Invalid email or password.');
+    let user = await User.findOne({ email: req.body.email }).populate('team');
+    
+    // 407 o'rniga 401 ishlatish
+    if (!user) return res.status(401).send('Invalid email or password.');  
   
     const validPassword = await bcrypt.compare(req.body.password, user.password);
-    if (!validPassword) return res.status(400).send('Invalid email or password.');
+    
+    // 407 o'rniga 401 ishlatish
+    if (!validPassword) return res.status(401).send('Invalid email or password.');  
+  
+  
+    console.log('User object:', user); // Tekshirish uchun
   
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
@@ -59,10 +103,14 @@ router.post('/register', async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      team: user.team,
       accessToken,
       refreshToken,
     });
   });
+  
+  
+  
   
   // Refresh token
   router.post('/refresh', async (req, res) => {
@@ -88,23 +136,16 @@ router.post('/register', async (req, res) => {
     }
   });
 
-  // Grant admin rights to a user (admin only)
-router.put('/:id/superuser', authMiddleware, checkAdmin, async (req, res) => {
-    try {
-      // Find the user by ID
-      const user = await User.findById(req.params.id);
-      if (!user) return res.status(404).send('User not found.');
-  
-      // Update the user's role to 'admin'
-      user.role = 'admin';
-      await user.save();
-  
-      res.send({ message: `${user.name} has been granted admin rights.` });
-    } catch (err) {
-      console.error('Error granting admin rights:', err);
-      res.status(500).send('Error granting admin rights.');
-    }
-  });
+
+
+router.put('/:id/superuser', authMiddleware, checkRole(['superuser']), async (req, res) => {
+    let user = await User.findById(req.params.id);
+    if (!user) return res.status(404).send('User not found.');
+
+    user.role = 'superuser';
+    await user.save();
+    res.send(user);
+});
   
 
 // Delete user's points (admin only)
@@ -140,6 +181,8 @@ router.get('/:id', async (req, res) => {
       res.status(500).send('Error fetching user.');
     }
   });
+
+
   
   // Update user information
 router.put('/:id', authMiddleware, async (req, res) => {
@@ -209,6 +252,27 @@ router.put('/reset-points/:userId/:groupId', authMiddleware, checkAdmin, async (
     res.status(500).send('Error resetting points for the group.');
   }
 });
+
+router.get('/team/:teamId', async (req, res) => {
+  const { teamId } = req.params;
+
+  try {
+    // Jamoani olish
+    const team = await Team.findById(teamId).populate('admins'); // admins populat qilinadi
+
+    if (!team) return res.status(404).send('Team not found.');
+
+    // Adminlarni olish
+    const users = await User.find({ _id: { $in: team.admins } });
+
+    res.send(users);
+  } catch (err) {
+    console.error('Error fetching users in team:', err);
+    res.status(500).send('Error fetching users in team.');
+  }
+});
+
+
 
 
 module.exports = router;

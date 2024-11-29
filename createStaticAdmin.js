@@ -13,26 +13,27 @@ async function createStaticAdmin() {
     });
     console.log('MongoDB connected.');
 
-    const existingAdmin = await User.findOne({ email: 'admin@example.com' }); // Change to appropriate admin email
-    if (existingAdmin) {
-      console.log('Admin already exists.');
+    const existingSuperadmin = await User.findOne({ email: 'superadmin@gmail.com' }); // Change to appropriate superadmin email
+    if (existingSuperadmin) {
+      console.log('Superadmin already exists.');
       return;
     }
 
-    const newAdminData = {
-      name: 'admin',
-       email: 'admin@example.com',
-      password: 'admin',  // Plain text password, you should change this
-      role: 'admin'
+   
+    const newSuperadminData = {
+      name: 'superadmin',
+      email: 'superadmin@gmail.com', // Replace with your desired email
+      password: 'superadmin',  // Plain text password, you should change this for security
+      role: 'superuser'
     };
 
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newAdminData.password, salt);
-    newAdminData.password = hashedPassword;
+    const hashedPassword = await bcrypt.hash(newSuperadminData.password, salt);
+    newSuperadminData.password = hashedPassword;
 
-    const newAdmin = new User(newAdminData);
-    await newAdmin.save();
-
+    const newSuperadmin = new User(newSuperadminData);
+    await newSuperadmin.save();
+    
     console.log('Admin created successfully.');
   } catch (err) {
     console.error('Error creating admin:', err);

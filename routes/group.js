@@ -5,6 +5,8 @@ const { Category } = require('../models/category');
 const { Test } = require('../models/test');
 const { User } = require('../models/user');
 const authMiddleware = require('../middleware/authMiddleware');
+const checkRole = require('../middleware/checkRole');
+const Team = require('../models/team');
 
 router.post('/:groupId/run-tests', authMiddleware, async (req, res) => {
     try {
@@ -96,18 +98,23 @@ router.post('/:groupId/run-tests', authMiddleware, async (req, res) => {
     }
   });
 
-module.exports = router;
+
 
 
 // Yangi guruh yaratish
-router.post('/', async (req, res) => {
+router.post('/',authMiddleware, checkRole(['admin', 'superuser']),  async (req, res) => {
   const { error } = validateGroup(req.body);
   if (error) return res.status(400).send(error.details[0].message);
 
   const category = await Category.findById(req.body.category);
   if (!category) return res.status(400).send('Noto\'g\'ri kategoriya.');
 
-  let group = new Group({ name: req.body.name, category: req.body.category });
+  let group = new Group({
+    name: req.body.name,
+    category: req.body.category,
+    createdBy: req.user._id, // Yaratilgan foydalanuvchi ID
+    createdByRole: req.user.role // Yaratilgan foydalanuvchining roli
+  });
   try {
     group = await group.save();
     category.groups.push(group._id);
@@ -140,12 +147,19 @@ router.get('/:id', async (req, res) => {
 });
 
 // Guruhni yangilash
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, checkRole(['admin', 'superuser']), async (req, res) => {
   const { error } = validateGroup(req.body);
   if (error) return res.status(400).send(error.details[0].message);
 
   try {
-    const group = await Group.findByIdAndUpdate(req.params.id, { name: req.body.name }, { new: true });
+    const group = await Group.findByIdAndUpdate(
+      req.params.id,
+      { 
+        name: req.body.name,
+        category: req.body.category // Adding the category field here
+      },
+      { new: true }
+    );
     if (!group) return res.status(404).send('Guruh topilmadi.');
     res.send(group);
   } catch (err) {
@@ -154,7 +168,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Guruhni o'chirish
-router.delete('/:id', async (req, res) => {
+router.delete('/:id',authMiddleware, checkRole(['admin', 'superuser']), async (req, res) => {
     try {
       // Delete the group and return the deleted document
       const group = await Group.findByIdAndDelete(req.params.id);
@@ -175,6 +189,24 @@ router.delete('/:id', async (req, res) => {
     }
   });
   
+  
+  router.get('/team/:id', async (req, res) => {
+    try {
+      const team = await Team.findById(req.params.id);
+      if (!team) return res.status(404).send('Team not found.');
+  
+      // Teamga tegishli bo'lgan adminlar tomonidan yaratilgan group-larni olish
+      const groups = await Group.find({ createdBy: { $in: team.admins } });
+      if (groups.length === 0) return res.status(404).send('Groups not found.');
+  
+      res.send(groups);
+    } catch (err) {
+      console.error('Error fetching groups:', err);
+      res.status(500).send('Error fetching groups.');
+    }
+  });
+
+
   
 
 module.exports = router;
